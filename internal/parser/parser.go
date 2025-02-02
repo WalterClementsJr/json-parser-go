@@ -1,5 +1,10 @@
 package parser
 
+import (
+	"strconv"
+	"strings"
+)
+
 // syntax
 const (
 	JSON_LEFTBRACE    = '{'
@@ -145,9 +150,8 @@ func lexString(index int, runes []rune) (Token, int) {
 
 	start := index + 1
 	for i := start; i < len(runes); i++ {
-		// end string
 		if runes[i] == JSON_QUOTE {
-			return Token{TokType: TokString, TokValue: runes[start:i]}, i - index
+			return Token{TokType: TokString, TokValue: string(runes[start:i])}, i - index + 1
 		}
 	}
 	// TODO: what would happen here?
@@ -155,7 +159,7 @@ func lexString(index int, runes []rune) (Token, int) {
 }
 
 func lexNumber(index int, runes []rune) (Token, int) {
-	count := 0
+	runeRead := 0
 
 	for i := index; i < len(runes); i++ {
 		cur := runes[i]
@@ -163,10 +167,26 @@ func lexNumber(index int, runes []rune) (Token, int) {
 		if !isJsonNumber(cur) {
 			break
 		} else {
-			count++
+			runeRead++
 		}
 	}
-	return Token{TokType: TokNumber, TokValue: runes[index : index+count]}, count
+
+	numberString := string(runes[index:index+runeRead])
+	var value any
+	var err error
+
+	// this is float
+	if strings.ContainsAny(numberString, ".eE") {
+		value, err = strconv.ParseFloat(numberString, 64)
+	} else {
+		// integer
+		value, err = strconv.ParseInt(numberString, 10, 64)
+	}
+	if err != nil {
+		// TODO: what happen when can't parse
+		return Token{TokType: TokNumber, TokValue: nil}, runeRead
+	}
+	return Token{TokType: TokNumber, TokValue: value}, runeRead
 }
 
 func isJsonNumber(r rune) bool {
@@ -219,9 +239,6 @@ func Lex(str string) []Token {
 		} else if stringToken, tokenRead := lexString(index, input); tokenRead > 0 {
 			lexResult = append(lexResult, stringToken)
 			index = index + tokenRead
-			// } else if isWhiteSpace := isWhiteSpace(r); isWhiteSpace == true {
-			// TODO: we don't care about whitespace?
-			// 	index++
 		} else if nullToken, tokenRead := lexNull(index, input); tokenRead > 0 {
 			lexResult = append(lexResult, nullToken)
 			index = index + tokenRead

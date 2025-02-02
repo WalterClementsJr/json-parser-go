@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"strconv"
 	"testing"
 )
 
@@ -15,30 +14,23 @@ func TestLexNumber(t *testing.T) {
 	if tokRead != 2 {
 		t.Errorf("Wrong string size read, expected %d, got %d", 2, tokRead)
 	}
-
-	numberStr := string(tokResult.TokValue.([]rune))
-	result, err := strconv.ParseFloat(numberStr, 64)
-	if err != nil {
-		t.Errorf("Number parsing error")
-	}
-	if result != -1 {
+	if tokResult.TokValue.(int64) != -1 {
 		t.Errorf("Wrong token value read, expected %d, got %s", -1, tokResult.TokValue)
 	}
 }
 
 func TestLexString(t *testing.T) {
-	input := "\"123\""
-	tokResult, tokRead := lexString(0, []rune(input))
+	input := ":\"abc\""
+	tokResult, tokRead := lexString(1, []rune(input))
 
 	if tokResult.TokType != TokString {
-		t.Errorf("Wrong lex result, expected string token, got %s", tokResult.TokType)
+		t.Errorf("Wrong lex type result, expected string token, got %s", tokResult.TokType)
 	}
-	if tokRead != 4 {
-		t.Errorf("Wrong string size read, expected %d, got %d", 4, tokRead)
+	if tokRead != 5 {
+		t.Errorf("Wrong string size read, expected %d, got %d", 5, tokRead)
 	}
-	result := string(tokResult.TokValue.([]rune))
-	if result != "123" {
-		t.Errorf("Wrong token value read, expected %d, got %s", 123, tokResult.TokValue)
+	if tokResult.TokValue != "abc" {
+		t.Errorf("Wrong token value read, expected %s, got %s", "abc", tokResult.TokValue)
 	}
 }
 
