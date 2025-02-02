@@ -1,8 +1,4 @@
-package main
-
-import (
-	"fmt"
-)
+package parser
 
 // syntax
 const (
@@ -13,6 +9,12 @@ const (
 	JSON_COMMA        = ','
 	JSON_COLON        = ':'
 	JSON_QUOTE        = '"'
+)
+
+const (
+	JsonBooleanTrue  = "true"
+	JsonBooleanFalse = "false"
+	JsonNull         = "null"
 )
 
 var JSON_NUMBER = [...]rune{
@@ -79,7 +81,7 @@ func (t TokenType) String() string {
 
 type Token struct {
 	TokType  TokenType
-	TokValue any // for string & number token only
+	TokValue any // for string, boolean & number token only
 }
 
 // func (t Token) String() string {
@@ -136,38 +138,38 @@ func isJsonSyntax(r rune) (bool, TokenType) {
 	return false, -1
 }
 
-func lexString(index int, runes []rune) (Token, bool) {
+func lexString(index int, runes []rune) (Token, int) {
 	if runes[index] != JSON_QUOTE {
-		return Token{}, false
+		return Token{}, -1
 	}
 
 	start := index + 1
 	for i := start; i < len(runes); i++ {
 		// end string
 		if runes[i] == JSON_QUOTE {
-			return Token{TokType: TokString, TokValue: runes[start:i]}, true
+			return Token{TokType: TokString, TokValue: runes[start:i]}, i - index
 		}
 	}
 	// TODO: what would happen here?
-	return Token{}, false
+	return Token{}, -1
 }
 
-func lexNumber(index int, runes []rune) (Token, bool) {
-	foundNumber := false
+func lexNumber(index int, runes []rune) (Token, int) {
+	count := 0
 
 	for i := index; i < len(runes); i++ {
 		cur := runes[i]
 
-		if !isNumber(cur) {
-			return Token{TokType: TokNumber, TokValue: runes[index:i]}, foundNumber
+		if !isJsonNumber(cur) {
+			break
 		} else {
-			foundNumber = true
+			count++
 		}
 	}
-	return Token{}, false
+	return Token{TokType: TokNumber, TokValue: runes[index : index+count]}, count
 }
 
-func isNumber(r rune) bool {
+func isJsonNumber(r rune) bool {
 	for _, numberToken := range JSON_NUMBER {
 		if numberToken == r {
 			return true
@@ -176,11 +178,34 @@ func isNumber(r rune) bool {
 	return false
 }
 
-// lexing
-func lex(str string) []Token {
-	// TODO: how to pre allocate the token slice
-	fmt.Println(str)
+func lexBoolean(index int, input []rune) (Token, int) {
+	inputLen := len(input[index:])
 
+	trueTokenLen := len(JsonBooleanTrue)
+	falseTokenLen := len(JsonBooleanFalse)
+
+	if inputLen >= trueTokenLen && string(input[index:index+trueTokenLen]) == JsonBooleanTrue {
+		return Token{TokType: TokBoolean, TokValue: true}, trueTokenLen
+	}
+	if inputLen >= falseTokenLen && string(input[index:index+falseTokenLen]) == JsonBooleanFalse {
+		return Token{TokType: TokBoolean, TokValue: false}, falseTokenLen
+	}
+	return Token{}, -1
+}
+
+func lexNull(index int, input []rune) (Token, int) {
+	inputLen := len(input[index:])
+	nullTokenLen := len(JsonNull)
+
+	if inputLen >= nullTokenLen && string(input[index:index+nullTokenLen]) == JsonNull {
+		return Token{TokType: TokNull}, nullTokenLen
+	}
+	return Token{}, -1
+}
+
+// lexing
+func Lex(str string) []Token {
+	// TODO: how to pre allocate the token slice
 	lexResult := make([]Token, 0)
 	input := []rune(str)
 
@@ -188,33 +213,25 @@ func lex(str string) []Token {
 	for index := 0; index < len(input); {
 		r := input[index]
 
-		if numToken, ok := lexNumber(index, input); ok == true {
+		if numToken, tokenRead := lexNumber(index, input); tokenRead > 0 {
 			lexResult = append(lexResult, numToken)
 			index = index + len(numToken.TokValue.([]rune))
-		} else if stringToken, ok := lexString(index, input); ok == true {
+		} else if stringToken, tokenRead := lexString(index, input); tokenRead > 0 {
 			lexResult = append(lexResult, stringToken)
-			// since we don't include the quote, we have to increment index to pass the closing quote
-			index = index + len(stringToken.TokValue.([]rune)) + 1
+			index = index + tokenRead
 			// } else if isWhiteSpace := isWhiteSpace(r); isWhiteSpace == true {
 			// TODO: we don't care about whitespace?
 			// 	index++
+		} else if nullToken, tokenRead := lexNull(index, input); tokenRead > 0 {
+			lexResult = append(lexResult, nullToken)
+			index = index + tokenRead
+		} else if boolToken, tokenRead := lexBoolean(index, input); tokenRead > 0 {
+			lexResult = append(lexResult, boolToken)
+			index = index + tokenRead
 		} else if isJsonSyntax, tokenType := isJsonSyntax(r); isJsonSyntax == true {
 			lexResult = append(lexResult, Token{TokType: tokenType})
 		}
 		index++
 	}
-	fmt.Println("parse result", lexResult)
 	return lexResult
-}
-
-func main() {
-	json := "{\"name\": \"Jason\", \"age\": -10, \"school\": { \"name\": \"Bekerly\"}}"
-
-	lex(json)
-
-	// m, err := FromString(json)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("parsed resutl", m)
 }
