@@ -1,254 +1,124 @@
 package parser
 
 import (
-	"strconv"
-	"strings"
+	"fmt"
 )
 
-// syntax
-const (
-	JSON_LEFTBRACE    = '{'
-	JSON_RIGHTBRACE   = '}'
-	JSON_LEFTBRACKET  = '['
-	JSON_RIGHTBRACKET = ']'
-	JSON_COMMA        = ','
-	JSON_COLON        = ':'
-	JSON_QUOTE        = '"'
+type Parser struct {
+	sourceTokens []Token
+	tokenIndex   int
+
+	// TODO: cumulative errors
+	errors []error
+	nodes  map[string]any
+}
+
+type (
+	JsonObject map[string]any
+	JsonArray  []any
 )
 
-const (
-	JsonBooleanTrue  = "true"
-	JsonBooleanFalse = "false"
-	JsonNull         = "null"
-)
-
-var JSON_NUMBER = [...]rune{
-	'0',
-	'1',
-	'2',
-	'3',
-	'3',
-	'4',
-	'5',
-	'6',
-	'7',
-	'8',
-	'9',
-	'-',
-	'e',
-	'E',
-	'.',
-	'+',
+func (p *Parser) peekCurrentTok() Token {
+	return p.sourceTokens[p.tokenIndex]
 }
 
-var JSON_SYNTAX = [...]rune{
-	JSON_LEFTBRACE,
-	JSON_RIGHTBRACE,
-	JSON_LEFTBRACKET,
-	JSON_RIGHTBRACKET,
-	JSON_COMMA,
-	JSON_COLON,
-	JSON_QUOTE,
-}
-var JSON_WHITESPACE = [...]rune{' ', '\t', '\b', '\n', '\r'}
-
-type TokenType int
-
-const (
-	TokLeftBrace TokenType = iota
-	TokRightBrace
-	TokLeftBracket
-	TokRightBracket
-	TokColon
-	TokComma
-	TokString
-	TokBoolean
-	TokNumber
-	TokNull
-)
-
-var TokenTypeMap = map[TokenType]string{
-	TokLeftBrace:    "TokLeftBrace",
-	TokRightBrace:   "TokRightBrace",
-	TokLeftBracket:  "TokLeftBracket",
-	TokRightBracket: "TokRightBracket",
-	TokColon:        "TokColon",
-	TokComma:        "TokComma",
-	TokString:       "TokString",
-	TokBoolean:      "TokBoolean",
-	TokNumber:       "TokNumber",
-	TokNull:         "TokNull",
+func (p *Parser) peekNextTok() Token {
+	return p.sourceTokens[p.tokenIndex+1]
 }
 
-func (t TokenType) String() string {
-	return TokenTypeMap[t]
-}
+func (p *Parser) parseArray() any {
+	jsonArray := make([]any, 0)
 
-type Token struct {
-	TokType  TokenType
-	TokValue any // for string, boolean & number token only
-}
-
-// func (t Token) String() string {
-// 	var val string
-// 	if t.TokValue != nil {
-// 		switch t.TokValue.(type) {
-// 		case int32:
-// 			return string(t.TokValue)
-// 		case string:
-// 			return
-// 		}
-// 		val = t.TokValue.(string)
-// 	} else {
-// 		val = "<nil>"
-// 	}
-// 	return fmt.Sprintf("Token [type: %s, value: %s]", t.TokType, val)
-// }
-
-var SYNTAX_TOKEN_MAP = map[rune]TokenType{
-	JSON_LEFTBRACE:    TokLeftBrace,
-	JSON_RIGHTBRACE:   TokRightBrace,
-	JSON_LEFTBRACKET:  TokLeftBracket,
-	JSON_RIGHTBRACKET: TokRightBracket,
-	JSON_COMMA:        TokComma,
-	JSON_COLON:        TokColon,
-	// JSON_QUOTE:        TokQuote,
-}
-
-// top level API
-func FromString(str string) (map[string]any, error) {
-	// TODO
-	return nil, nil
-}
-
-func isWhiteSpace(r rune) bool {
-	for _, syn := range JSON_WHITESPACE {
-		if syn == r {
-			return true
+	for {
+		if p.peekCurrentTok().TokType == TokRightBracket {
+			p.tokenIndex++
+			return jsonArray
 		}
-	}
-	return false
-}
+		p.tokenIndex++
 
-func isJsonSyntax(r rune) (bool, TokenType) {
-	for _, syn := range JSON_SYNTAX {
-		if syn == r {
-			correspondingToken, ok := SYNTAX_TOKEN_MAP[syn]
+		item := p.parseValue()
+		jsonArray = append(jsonArray, item)
 
-			if ok {
-				return true, correspondingToken
-			}
-		}
-	}
-	return false, -1
-}
+		p.tokenIndex += 1
 
-func lexString(index int, runes []rune) (Token, int) {
-	if runes[index] != JSON_QUOTE {
-		return Token{}, -1
-	}
-
-	start := index + 1
-	for i := start; i < len(runes); i++ {
-		if runes[i] == JSON_QUOTE {
-			return Token{TokType: TokString, TokValue: string(runes[start:i])}, i - index + 1
-		}
-	}
-	// TODO: what would happen here?
-	return Token{}, -1
-}
-
-func lexNumber(index int, runes []rune) (Token, int) {
-	runeRead := 0
-
-	for i := index; i < len(runes); i++ {
-		cur := runes[i]
-
-		if !isJsonNumber(cur) {
-			break
+		if p.peekCurrentTok().TokType == TokComma {
+			continue
 		} else {
-			runeRead++
+			break
 		}
 	}
+	return jsonArray
+}
 
-	numberString := string(runes[index:index+runeRead])
-	var value any
-	var err error
+func (p *Parser) parseObject() JsonObject {
+	obj := JsonObject{}
 
-	// this is float
-	if strings.ContainsAny(numberString, ".eE") {
-		value, err = strconv.ParseFloat(numberString, 64)
+	for {
+		if p.peekCurrentTok().TokType == TokRightBrace {
+			// stop
+			break
+		}
+		if p.peekCurrentTok().TokType != TokString || p.peekNextTok().TokType != TokColon {
+			// TODO: push errors
+			panic(fmt.Sprintf("JSON object has wrong format, must be a value associated with a key, got %s, %s", p.peekCurrentTok().TokType, p.peekNextTok().TokType))
+		}
+		key := p.peekCurrentTok().TokValue.(string)
+
+		// advance 2 tokens
+		p.tokenIndex += 2
+
+		obj[key] = p.parseValue()
+		fmt.Println("parsed", key, obj[key])
+
+		p.tokenIndex++
+
+		// stop parsing
+		if p.tokenIndex >= len(p.sourceTokens) {
+			break
+		}
+		if p.peekCurrentTok().TokType == TokComma {
+			// continue on colon
+			p.tokenIndex++
+			continue
+		}
+	}
+	return obj
+}
+
+// main parsing
+func (p *Parser) parseValue() any {
+	if p.tokenIndex >= len(p.sourceTokens) {
+		panic("")
+	}
+
+	token := p.peekCurrentTok()
+	tokenType := token.TokType
+
+	if tokenType == TokLeftBrace {
+		fmt.Println("parsing object")
+		p.tokenIndex++
+		return p.parseObject()
+	} else if tokenType == TokLeftBracket {
+		fmt.Println("parsing array")
+		p.tokenIndex++
+		return p.parseArray()
+	} else if tokenType == TokNull {
+		fmt.Println("parsing null")
+		p.tokenIndex++
+		return nil
+	} else if (tokenType == TokBoolean || tokenType == TokString || tokenType == TokNumber) && token.TokValue != nil {
+		p.tokenIndex++
+		return token.TokValue
 	} else {
-		// integer
-		value, err = strconv.ParseInt(numberString, 10, 64)
+		// TODO: accumulate errors
+		panic(fmt.Errorf("unexpected token while parsing at line %d, column %d", token.Loc.Line, token.Loc.Col))
 	}
-	if err != nil {
-		// TODO: what happen when can't parse
-		return Token{TokType: TokNumber, TokValue: nil}, runeRead
-	}
-	return Token{TokType: TokNumber, TokValue: value}, runeRead
 }
 
-func isJsonNumber(r rune) bool {
-	for _, numberToken := range JSON_NUMBER {
-		if numberToken == r {
-			return true
-		}
-	}
-	return false
-}
+func Parse(tokens []Token) any {
+	p := Parser{sourceTokens: tokens}
+	result := p.parseValue()
+	fmt.Println("parse result", result)
 
-func lexBoolean(index int, input []rune) (Token, int) {
-	inputLen := len(input[index:])
-
-	trueTokenLen := len(JsonBooleanTrue)
-	falseTokenLen := len(JsonBooleanFalse)
-
-	if inputLen >= trueTokenLen && string(input[index:index+trueTokenLen]) == JsonBooleanTrue {
-		return Token{TokType: TokBoolean, TokValue: true}, trueTokenLen
-	}
-	if inputLen >= falseTokenLen && string(input[index:index+falseTokenLen]) == JsonBooleanFalse {
-		return Token{TokType: TokBoolean, TokValue: false}, falseTokenLen
-	}
-	return Token{}, -1
-}
-
-func lexNull(index int, input []rune) (Token, int) {
-	inputLen := len(input[index:])
-	nullTokenLen := len(JsonNull)
-
-	if inputLen >= nullTokenLen && string(input[index:index+nullTokenLen]) == JsonNull {
-		return Token{TokType: TokNull}, nullTokenLen
-	}
-	return Token{}, -1
-}
-
-// lexing
-func Lex(str string) []Token {
-	// TODO: how to pre allocate the token slice
-	lexResult := make([]Token, 0)
-	input := []rune(str)
-
-	// lexing
-	for index := 0; index < len(input); {
-		r := input[index]
-
-		if numToken, tokenRead := lexNumber(index, input); tokenRead > 0 {
-			lexResult = append(lexResult, numToken)
-			index = index + len(numToken.TokValue.([]rune))
-		} else if stringToken, tokenRead := lexString(index, input); tokenRead > 0 {
-			lexResult = append(lexResult, stringToken)
-			index = index + tokenRead
-		} else if nullToken, tokenRead := lexNull(index, input); tokenRead > 0 {
-			lexResult = append(lexResult, nullToken)
-			index = index + tokenRead
-		} else if boolToken, tokenRead := lexBoolean(index, input); tokenRead > 0 {
-			lexResult = append(lexResult, boolToken)
-			index = index + tokenRead
-		} else if isJsonSyntax, tokenType := isJsonSyntax(r); isJsonSyntax == true {
-			lexResult = append(lexResult, Token{TokType: tokenType})
-		}
-		index++
-	}
-	return lexResult
+	return result
 }
