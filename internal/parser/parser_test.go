@@ -1,71 +1,42 @@
 package parser
 
 import (
+	"reflect"
 	"testing"
 )
 
-func TestLexNumber(t *testing.T) {
-	input := "-1"
-	tokResult, tokRead := lexNumber(0, []rune(input))
+func TestParser(t *testing.T) {
+	type expect struct {
+		key   string
+		value any
+	}
+	testCases := []struct {
+		input          string
+		expectedOutput any
+	}{
+		{
+			`{"id": null, "name": "Jason", "school": { "name": "Bekerly" }, "age": -10, "phone": [], "dob": "2020" }`,
+			map[string]any{"id": nil, "name": "Jason", "age": int64(-10), "dob": "2020", "phone": make([]any, 0), "school": map[string]any{"name": "Bekerly"}},
+		},
+		{
+			`[null, 10, "abc", null, [1, "a", null], {"a": "b", "c": [1, "a"]}]`,
+			[]any{nil, int64(10), "abc", nil, []any{int64(1), "a", nil}, map[string]any{"a": "b", "c": []any{int64(1), "a"}}},
+		},
+	}
 
-	if tokResult.TokType != TokNumber {
-		t.Errorf("Wrong lex result, expected number token, got %s", tokResult.TokType)
-	}
-	if tokRead != 2 {
-		t.Errorf("Wrong string size read, expected %d, got %d", 2, tokRead)
-	}
-	if tokResult.TokValue.(int64) != -1 {
-		t.Errorf("Wrong token value read, expected %d, got %s", -1, tokResult.TokValue)
-	}
-}
+	for _, tt := range testCases {
+		t.Run(tt.input, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Error("Type casting error", r)
+				}
+			}()
 
-func TestLexString(t *testing.T) {
-	input := ":\"abc\""
-	tokResult, tokRead := lexString(1, []rune(input))
+			actual := Parse(Tokenize(tt.input))
 
-	if tokResult.TokType != TokString {
-		t.Errorf("Wrong lex type result, expected string token, got %s", tokResult.TokType)
-	}
-	if tokRead != 5 {
-		t.Errorf("Wrong string size read, expected %d, got %d", 5, tokRead)
-	}
-	if tokResult.TokValue != "abc" {
-		t.Errorf("Wrong token value read, expected %s, got %s", "abc", tokResult.TokValue)
-	}
-}
-
-func TestJsonSyntax(t *testing.T) {
-	isSyntax, tokenType := isJsonSyntax('[')
-
-	if isSyntax == false {
-		t.Errorf("Expected JSON bracket")
-	}
-	if tokenType != TokLeftBracket {
-		t.Errorf("Wrong syntax detected, expected %s, got %s", TokLeftBracket, tokenType)
-	}
-}
-
-func TestLexBoolean(t *testing.T) {
-	tokResult, read := lexBoolean(0, []rune("false"))
-
-	if tokResult.TokType != TokBoolean {
-		t.Errorf("Wrong token type, expected %s, got %s", TokBoolean, tokResult.TokType)
-	}
-	if read != 5 {
-		t.Errorf("Wrong expected %d, got %d", 5, read)
-	}
-	if tokResult.TokValue.(bool) != false {
-		t.Errorf("Wrong token value, got %s", tokResult.TokValue)
-	}
-}
-
-func TestLexNull(t *testing.T) {
-	tokResult, read := lexNull(1, []rune("1null"))
-
-	if tokResult.TokType != TokNull {
-		t.Errorf("Wrong token type, expected %s, got %s", TokNull, tokResult.TokType)
-	}
-	if read != 4 {
-		t.Errorf("Wrong expected %d, got %d", 4, read)
+			if !reflect.DeepEqual(actual, tt.expectedOutput) {
+				t.Error("Wrong value parsed, expected", tt.expectedOutput, "got", actual)
+			}
+		})
 	}
 }

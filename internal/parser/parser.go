@@ -10,13 +10,7 @@ type Parser struct {
 
 	// TODO: cumulative errors
 	errors []error
-	nodes  map[string]any
 }
-
-type (
-	JsonObject map[string]any
-	JsonArray  []any
-)
 
 func (p *Parser) peekCurrentTok() Token {
 	return p.sourceTokens[p.tokenIndex]
@@ -34,14 +28,13 @@ func (p *Parser) parseArray() any {
 			p.tokenIndex++
 			return jsonArray
 		}
-		p.tokenIndex++
-
 		item := p.parseValue()
 		jsonArray = append(jsonArray, item)
 
-		p.tokenIndex += 1
+		fmt.Println("parsed", item)
 
 		if p.peekCurrentTok().TokType == TokComma {
+			p.tokenIndex++
 			continue
 		} else {
 			break
@@ -50,8 +43,8 @@ func (p *Parser) parseArray() any {
 	return jsonArray
 }
 
-func (p *Parser) parseObject() JsonObject {
-	obj := JsonObject{}
+func (p *Parser) parseObject() map[string]any {
+	obj := make(map[string]any)
 
 	for {
 		if p.peekCurrentTok().TokType == TokRightBrace {
@@ -60,7 +53,7 @@ func (p *Parser) parseObject() JsonObject {
 		}
 		if p.peekCurrentTok().TokType != TokString || p.peekNextTok().TokType != TokColon {
 			// TODO: push errors
-			panic(fmt.Sprintf("JSON object has wrong format, must be a value associated with a key, got %s, %s", p.peekCurrentTok().TokType, p.peekNextTok().TokType))
+			panic(fmt.Sprintf("JSON object member has wrong format, must be a value associated with a key, got %s, %s", p.peekCurrentTok().TokType, p.peekNextTok().TokType))
 		}
 		key := p.peekCurrentTok().TokValue.(string)
 
@@ -68,9 +61,8 @@ func (p *Parser) parseObject() JsonObject {
 		p.tokenIndex += 2
 
 		obj[key] = p.parseValue()
-		fmt.Println("parsed", key, obj[key])
 
-		p.tokenIndex++
+		fmt.Println("parsed", key, obj[key])
 
 		// stop parsing
 		if p.tokenIndex >= len(p.sourceTokens) {
@@ -88,22 +80,23 @@ func (p *Parser) parseObject() JsonObject {
 // main parsing
 func (p *Parser) parseValue() any {
 	if p.tokenIndex >= len(p.sourceTokens) {
-		panic("")
+		panic("unexpected parsing error")
 	}
 
 	token := p.peekCurrentTok()
 	tokenType := token.TokType
 
 	if tokenType == TokLeftBrace {
-		fmt.Println("parsing object")
 		p.tokenIndex++
-		return p.parseObject()
+		result := p.parseObject()
+		p.tokenIndex++
+		return result
 	} else if tokenType == TokLeftBracket {
-		fmt.Println("parsing array")
 		p.tokenIndex++
-		return p.parseArray()
+		arr := p.parseArray()
+		p.tokenIndex++
+		return arr
 	} else if tokenType == TokNull {
-		fmt.Println("parsing null")
 		p.tokenIndex++
 		return nil
 	} else if (tokenType == TokBoolean || tokenType == TokString || tokenType == TokNumber) && token.TokValue != nil {
@@ -111,7 +104,7 @@ func (p *Parser) parseValue() any {
 		return token.TokValue
 	} else {
 		// TODO: accumulate errors
-		panic(fmt.Errorf("unexpected token while parsing at line %d, column %d", token.Loc.Line, token.Loc.Col))
+		panic(fmt.Errorf("unexpected token %s while parsing at line %d, column %d", token.TokType, token.Loc.Line, token.Loc.Col))
 	}
 }
 
