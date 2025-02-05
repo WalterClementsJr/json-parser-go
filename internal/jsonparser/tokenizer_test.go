@@ -70,7 +70,7 @@ func TestTokenizeBoolean(t *testing.T) {
 }
 
 func TestTokenizeSyntax(t *testing.T) {
-	tokens := Tokenize("{:,}")
+	tokens := Tokenize([]rune("{:,}"))
 	expectedTypes := []TokenType{TokLeftBrace, TokColon, TokComma, TokRightBrace}
 
 	if l := len(tokens); l != 4 {
@@ -105,7 +105,7 @@ func TestTokenizer(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.input, func(t *testing.T) {
-			tokenizerResult := Tokenize(tt.input)
+			tokenizerResult := Tokenize([]rune(tt.input))
 
 			if tokLen := len(tokenizerResult); tokLen != len(tt.expectedOutput) {
 				t.Errorf("Mismatched token length, expected %d, got %d", len(tt.expectedOutput), tokLen)
@@ -125,7 +125,7 @@ func TestTokenizer(t *testing.T) {
 }
 
 func testTokenizedTokenType(source string, expectedTokenType []TokenType, t *testing.T) {
-	actual := Tokenize(source)
+	actual := Tokenize([]rune(source))
 	for i, expected := range expectedTokenType {
 		if actual[i].TokType != expected {
 			t.Errorf("Not equal, expected %s, got %s", expected, actual[i].TokType)

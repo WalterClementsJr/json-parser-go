@@ -212,10 +212,9 @@ func tokenizeNull(index int, input []rune) (Token, int) {
 	return Token{}, -1
 }
 
-func Tokenize(str string) []Token {
+func Tokenize(input []rune) []Token {
 	// TODO: if pre-allocating the token slice is possible
 	tokens := make([]Token, 0)
-	input := []rune(str)
 
 	for index := 0; index < len(input); {
 		currentRune := input[index]
