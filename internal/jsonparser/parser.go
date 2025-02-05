@@ -31,8 +31,6 @@ func (p *Parser) parseArray() any {
 		item := p.parseValue()
 		jsonArray = append(jsonArray, item)
 
-		fmt.Println("parsed", item)
-
 		if p.peekCurrentTok().TokType == TokComma {
 			p.tokenIndex++
 			continue
@@ -61,8 +59,6 @@ func (p *Parser) parseObject() map[string]any {
 		p.tokenIndex += 2
 
 		obj[key] = p.parseValue()
-
-		fmt.Println("parsed", key, obj[key])
 
 		// stop parsing
 		if p.tokenIndex >= len(p.sourceTokens) {
@@ -104,14 +100,11 @@ func (p *Parser) parseValue() any {
 		return token.TokValue
 	} else {
 		// TODO: accumulate errors
-		panic(fmt.Errorf("unexpected token %s while parsing at line %d, column %d", token.TokType, token.Loc.Line, token.Loc.Col))
+		panic(fmt.Errorf("unexpected token %s while parsing at line %d, column %d", token.TokType, token.Loc.start, token.Loc.end))
 	}
 }
 
 func Parse(tokens []Token) any {
 	p := Parser{sourceTokens: tokens}
-	result := p.parseValue()
-	fmt.Println("parse result", result)
-
-	return result
+	return p.parseValue()
 }

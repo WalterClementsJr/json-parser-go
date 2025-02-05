@@ -91,8 +91,8 @@ func (t TokenType) String() string {
 }
 
 type Location struct {
-	Line int
-	Col  int
+	start int
+	end   int
 }
 
 type Token struct {
@@ -108,12 +108,6 @@ var SYNTAX_TOKEN_MAP = map[rune]TokenType{
 	JSON_RIGHTBRACKET: TokRightBracket,
 	JSON_COMMA:        TokComma,
 	JSON_COLON:        TokColon,
-}
-
-// top level API
-func FromString(str string) (map[string]any, error) {
-	// TODO: call tokenizer and parser
-	return nil, nil
 }
 
 func isWhiteSpace(r rune) bool {
@@ -146,7 +140,7 @@ func tokenizeString(index int, runes []rune) (Token, int) {
 	start := index + 1
 	for i := start; i < len(runes); i++ {
 		if runes[i] == JSON_QUOTE {
-			return Token{TokType: TokString, TokValue: string(runes[start:i]), Loc: Location{Col: i}}, i - index + 1
+			return Token{TokType: TokString, TokValue: string(runes[start:i]), Loc: Location{start, i}}, i - index + 1
 		}
 	}
 	// TODO: what would happen here?
@@ -181,7 +175,7 @@ func tokenizeNumber(index int, runes []rune) (Token, int) {
 		// TODO: what happen when can't parse
 		return Token{TokType: TokNumber, TokValue: nil}, runeRead
 	}
-	return Token{TokType: TokNumber, TokValue: value}, runeRead
+	return Token{TokType: TokNumber, TokValue: value, Loc: Location{index, index + runeRead}}, runeRead
 }
 
 func isJsonNumber(r rune) bool {
@@ -200,10 +194,10 @@ func TokenizeBoolean(index int, input []rune) (Token, int) {
 	falseTokenLen := len(JsonBooleanFalse)
 
 	if inputLen >= trueTokenLen && string(input[index:index+trueTokenLen]) == JsonBooleanTrue {
-		return Token{TokType: TokBoolean, TokValue: true}, trueTokenLen
+		return Token{TokType: TokBoolean, TokValue: true, Loc: Location{index, index + trueTokenLen}}, trueTokenLen
 	}
 	if inputLen >= falseTokenLen && string(input[index:index+falseTokenLen]) == JsonBooleanFalse {
-		return Token{TokType: TokBoolean, TokValue: false}, falseTokenLen
+		return Token{TokType: TokBoolean, TokValue: false, Loc: Location{index, index + falseTokenLen}}, falseTokenLen
 	}
 	return Token{}, -1
 }
@@ -213,7 +207,7 @@ func tokenizeNull(index int, input []rune) (Token, int) {
 	nullTokenLen := len(JsonNull)
 
 	if inputLen >= nullTokenLen && string(input[index:index+nullTokenLen]) == JsonNull {
-		return Token{TokType: TokNull}, nullTokenLen
+		return Token{TokType: TokNull, Loc: Location{index, index + nullTokenLen}}, nullTokenLen
 	}
 	return Token{}, -1
 }
@@ -239,10 +233,14 @@ func Tokenize(str string) []Token {
 			tokens = append(tokens, boolToken)
 			index = index + tokenRead
 		} else if isJsonSyntax, tokenType := isJsonSyntax(currentRune); isJsonSyntax == true {
-			tokens = append(tokens, Token{TokType: tokenType})
+			tokens = append(tokens, Token{TokType: tokenType, Loc: Location{index, index + 1}})
+			index++
+		} else if isWhiteSpace(currentRune) {
+			// whitespace
 			index++
 		} else {
-			// whitespace
+			tokens = append(tokens, Token{TokType: TokInvalid, Loc: Location{index, index + 1}})
+			// invalid
 			index++
 		}
 	}

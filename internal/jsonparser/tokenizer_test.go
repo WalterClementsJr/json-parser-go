@@ -4,6 +4,13 @@ import (
 	"testing"
 )
 
+func TestTokenizedType(t *testing.T) {
+	testTokenizedTokenType(`123"123":,`, []TokenType{TokNumber, TokString, TokColon, TokComma}, t)
+	testTokenizedTokenType("1, 2", []TokenType{TokNumber, TokComma, TokNumber}, t)
+	testTokenizedTokenType("{a}", []TokenType{TokLeftBrace, TokInvalid, TokRightBrace}, t)
+	testTokenizedTokenType("/[]'c#", []TokenType{TokInvalid, TokLeftBracket, TokRightBracket, TokInvalid, TokInvalid, TokInvalid}, t)
+}
+
 func TestTokenizeNumber(t *testing.T) {
 	input := "-1"
 	tokResult, tokRead := tokenizeNumber(0, []rune(input))
@@ -16,6 +23,9 @@ func TestTokenizeNumber(t *testing.T) {
 	}
 	if tokResult.TokValue.(int64) != -1 {
 		t.Errorf("Wrong token value read, expected %d, got %s", -1, tokResult.TokValue)
+	}
+	if input[tokResult.Loc.start:tokResult.Loc.end] != "-1" {
+		t.Error("Wrong token location")
 	}
 }
 
@@ -114,3 +124,12 @@ func TestTokenizer(t *testing.T) {
 	}
 }
 
+func testTokenizedTokenType(source string, expectedTokenType []TokenType, t *testing.T) {
+	actual := Tokenize(source)
+	for i, expected := range expectedTokenType {
+		if actual[i].TokType != expected {
+			t.Errorf("Not equal, expected %s, got %s", expected, actual[i].TokType)
+		}
+	}
+
+}
