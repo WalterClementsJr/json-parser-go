@@ -32,7 +32,7 @@ func TestParser(t *testing.T) {
 				}
 			}()
 
-			actual := Parse(Tokenize(tt.input))
+			actual := Parse(Tokenize([]rune(tt.input)))
 
 			if !reflect.DeepEqual(actual, tt.expectedOutput) {
 				t.Error("Wrong value parsed, expected", tt.expectedOutput, "got", actual)

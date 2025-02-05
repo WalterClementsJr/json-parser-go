@@ -2,6 +2,7 @@ package jsonparser
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Parser struct {
@@ -100,7 +101,66 @@ func (p *Parser) parseValue() any {
 		return token.TokValue
 	} else {
 		// TODO: accumulate errors
-		panic(fmt.Errorf("unexpected token %s while parsing at line %d, column %d", token.TokType, token.Loc.start, token.Loc.end))
+		panic(fmt.Errorf("unexpected token %s while parsing", token.TokType))
+	}
+}
+
+func Dump(jsonValue any) string {
+	builder := strings.Builder{}
+	dump(jsonValue, &builder, 0)
+	return builder.String()
+}
+
+func dump(jsonValue any, builder *strings.Builder, indent int) {
+	indentMultiplier := 2 // 2 space per indent level
+
+	appendIndent := func(b *strings.Builder, indentLevel int) {
+		if indentLevel == 0 {
+			return
+		}
+		b.WriteString(strings.Repeat(" ", indentLevel*indentMultiplier))
+	}
+
+	switch val := jsonValue.(type) {
+
+	case map[string]any:
+		fmt.Fprint(builder, "{\n")
+
+		index := 0
+		for k, v := range val {
+			appendIndent(builder, indent+1)
+			fmt.Fprintf(builder, "\"%s\": ", k)
+
+			dump(v, builder, indent + 1)
+			if index < len(val)-1 {
+				fmt.Fprint(builder, ",")
+			}
+			fmt.Fprintln(builder)
+			index++
+		}
+		appendIndent(builder, indent)
+		fmt.Fprintf(builder, "}")
+
+	case []any:
+		fmt.Fprint(builder, "[\n")
+
+		for index, member := range val {
+			appendIndent(builder, indent+1)
+			dump(member, builder, indent+1)
+
+			if index < len(val)-1 {
+				fmt.Fprint(builder, ",")
+			}
+			fmt.Fprintln(builder)
+		}
+		appendIndent(builder, indent)
+		fmt.Fprint(builder, "]")
+	case string:
+		fmt.Fprintf(builder, "%q", val)
+	case nil:
+		builder.WriteString("null")
+	default: // int, float, bool, null
+		fmt.Fprintf(builder, fmt.Sprint(val))
 	}
 }
 
